@@ -41,12 +41,16 @@ def render_ascii(maze: Maze, show_solution: bool = True) -> str:
                     middle += " "
 
             # Cell content
+            cell = maze.get_cell(x, y)
+
             if (x, y) == maze.entry:
-                cell_text = " S "
+                cell_text = " ⍈ "
             elif (x, y) == maze.exit_:
-                cell_text = " E "
+                cell_text = " ⍈ "
+            elif cell.is_pattern:  # type: ignore
+                cell_text = "\033[34m █ \033[0m"
             elif (x, y) in path_cells:
-                cell_text = " █ "
+                cell_text = "\033[32m █ \033[0m"
             else:
                 cell_text = "   "
 
