@@ -98,7 +98,6 @@ def main() -> int:
         print(f"Perfect: {config['perfect']}")
         print(f"Solution length: {len(maze.solution)}")
         print()
-        print(render_ascii(maze, show_solution=True))
 
         return 0
 

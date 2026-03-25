@@ -20,12 +20,12 @@ def render_ascii(maze: Maze, show_solution: bool = True) -> str:
     path_cells = set(solution_cells(maze)) if show_solution else set()
 
     # Top border
-    top = "+"
+    top = "·"
     for x in range(maze.width):
         if maze.has_wall(x, 0, NORTH):
-            top += "---+"
+            top += "———·"
         else:
-            top += "   +"
+            top += "   ·"
     lines.append(top)
 
     # Maze rows
@@ -46,7 +46,7 @@ def render_ascii(maze: Maze, show_solution: bool = True) -> str:
             elif (x, y) == maze.exit_:
                 cell_text = " E "
             elif (x, y) in path_cells:
-                cell_text = " █ "   # 🔥 CAMBIO AQUÍ
+                cell_text = " █ "
             else:
                 cell_text = "   "
 
@@ -64,9 +64,9 @@ def render_ascii(maze: Maze, show_solution: bool = True) -> str:
         bottom = "+"
         for x in range(maze.width):
             if maze.has_wall(x, y, SOUTH):
-                bottom += "---+"
+                bottom += "———·"
             else:
-                bottom += "   +"
+                bottom += "   ·"
         lines.append(bottom)
 
     return "\n".join(lines)
