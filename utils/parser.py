@@ -29,14 +29,20 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional, Tuple
 
+VALID_ALGORITHMS: Tuple[str, ...] = (
+    "dfs",
+    "recursive_backtracker",
+    "backtracking",
+    "prim",
+    "prims",
+)
+
+VALID_DISPLAYS: Tuple[str, ...] = ("ascii",)
+
 
 class ConfigError(Exception):
     """Raised for any configuration-related error."""
 
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 def _parse_bool(value: str, key: str) -> bool:
     """Parse a True/False-style boolean string.
@@ -56,9 +62,7 @@ def _parse_bool(value: str, key: str) -> bool:
         return True
     if lower in ("false", "0", "no"):
         return False
-    raise ConfigError(
-        f"{key} must be True or False, got {value!r}"
-    )
+    raise ConfigError(f"{key} must be True or False, got {value!r}")
 
 
 def _parse_coords(value: str, key: str) -> Tuple[int, int]:
@@ -76,21 +80,16 @@ def _parse_coords(value: str, key: str) -> Tuple[int, int]:
     """
     parts = value.split(",")
     if len(parts) != 2:
-        raise ConfigError(
-            f"{key} must be 'x,y' format, got {value!r}"
-        )
+        raise ConfigError(f"{key} must be 'x,y' format, got {value!r}")
     try:
-        x, y = int(parts[0].strip()), int(parts[1].strip())
-    except ValueError:
+        x = int(parts[0].strip())
+        y = int(parts[1].strip())
+    except ValueError as exc:
         raise ConfigError(
             f"{key} coordinates must be integers, got {value!r}"
-        )
+        ) from exc
     return x, y
 
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def parse_config(filepath: str) -> Dict[str, Any]:
     """Parse a maze configuration file and return validated settings.
@@ -108,16 +107,11 @@ def parse_config(filepath: str) -> Dict[str, Any]:
         * ``output_file`` (str)
         * ``perfect`` (bool)
         * ``seed`` (Optional[int])
-        * ``algorithm`` (str)  – 'dfs' or 'prim'
-        * ``display`` (str)    – 'ascii' (future: 'mlx')
+        * ``algorithm`` (str)
+        * ``display`` (str)
 
     Raises:
         ConfigError: If file not found, malformed, or has invalid values.
-
-    Example::
-
-        cfg = parse_config("config/default.txt")
-        print(cfg["width"], cfg["height"])
     """
     if not os.path.isfile(filepath):
         raise ConfigError(f"Configuration file not found: {filepath!r}")
@@ -127,69 +121,67 @@ def parse_config(filepath: str) -> Dict[str, Any]:
     try:
         with open(filepath, "r", encoding="utf-8") as fh:
             for lineno, line in enumerate(fh, start=1):
-                line = line.rstrip("\n").rstrip("\r")
                 stripped = line.strip()
-                # Skip blank lines and comments
+
                 if not stripped or stripped.startswith("#"):
                     continue
                 if "=" not in line:
                     raise ConfigError(
-                        f"Line {lineno}: expected KEY=VALUE, got {line!r}"
+                        f"Line {lineno}: expcd KEY=VALUE got {line.rstrip()!r}"
                     )
+
                 key_raw, _, val_raw = line.partition("=")
                 key = key_raw.strip()
                 val = val_raw.strip()
+
                 if not key:
                     raise ConfigError(f"Line {lineno}: empty key name")
+                if key in raw:
+                    raise ConfigError(
+                        f"Line {lineno}: duplicate key {key!r}"
+                    )
+
                 raw[key] = val
     except OSError as exc:
         raise ConfigError(f"Cannot read {filepath!r}: {exc}") from exc
 
-    # ------------------------------------------------------------------ #
-    # Validate required keys
-    # ------------------------------------------------------------------ #
     required = ("WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT")
-    missing = [k for k in required if k not in raw]
+    missing = [key for key in required if key not in raw]
     if missing:
-        raise ConfigError(
-            f"Missing required keys: {', '.join(missing)}"
-        )
+        raise ConfigError(f"Missing required keys: {', '.join(missing)}")
 
-    # ------------------------------------------------------------------ #
-    # Parse each key
-    # ------------------------------------------------------------------ #
     try:
         width = int(raw["WIDTH"])
         height = int(raw["HEIGHT"])
     except ValueError as exc:
-        raise ConfigError(f"WIDTH and HEIGHT must be integers: {exc}") from exc
+        raise ConfigError("WIDTH and HEIGHT must be integers") from exc
 
     if width < 2 or height < 2:
         raise ConfigError("WIDTH and HEIGHT must each be at least 2")
 
-    entry: Tuple[int, int] = _parse_coords(raw["ENTRY"], "ENTRY")
-    exit_: Tuple[int, int] = _parse_coords(raw["EXIT"], "EXIT")
+    entry = _parse_coords(raw["ENTRY"], "ENTRY")
+    exit_ = _parse_coords(raw["EXIT"], "EXIT")
 
     ex, ey = entry
     xx, xy = exit_
+
     if not (0 <= ex < width and 0 <= ey < height):
         raise ConfigError(
-            f"ENTRY {entry} is outside the maze bounds ({width}×{height})"
+            f"ENTRY {entry} is outside the maze bounds ({width}x{height})"
         )
     if not (0 <= xx < width and 0 <= xy < height):
         raise ConfigError(
-            f"EXIT {exit_} is outside the maze bounds ({width}×{height})"
+            f"EXIT {exit_} is outside the maze bounds ({width}x{height})"
         )
     if entry == exit_:
         raise ConfigError("ENTRY and EXIT must be different cells")
 
-    output_file: str = raw["OUTPUT_FILE"]
+    output_file = raw["OUTPUT_FILE"].strip()
     if not output_file:
         raise ConfigError("OUTPUT_FILE cannot be empty")
 
-    perfect: bool = _parse_bool(raw["PERFECT"], "PERFECT")
+    perfect = _parse_bool(raw["PERFECT"], "PERFECT")
 
-    # Optional keys
     seed: Optional[int] = None
     if "SEED" in raw:
         try:
@@ -199,8 +191,19 @@ def parse_config(filepath: str) -> Dict[str, Any]:
                 f"SEED must be an integer, got {raw['SEED']!r}"
             ) from exc
 
-    algorithm: str = raw.get("ALGORITHM", "dfs").lower()
-    display: str = raw.get("DISPLAY", "ascii").lower()
+    algorithm = raw.get("ALGORITHM", "dfs").strip().lower()
+    if algorithm not in VALID_ALGORITHMS:
+        valid = ", ".join(VALID_ALGORITHMS)
+        raise ConfigError(
+            f"ALGORITHM must be one of: {valid}. Got {algorithm!r}"
+        )
+
+    display = raw.get("DISPLAY", "ascii").strip().lower()
+    if display not in VALID_DISPLAYS:
+        valid = ", ".join(VALID_DISPLAYS)
+        raise ConfigError(
+            f"DISPLAY must be one of: {valid}. Got {display!r}"
+        )
 
     return {
         "width": width,

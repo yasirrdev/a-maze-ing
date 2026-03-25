@@ -4,23 +4,15 @@ Produces perfect mazes with long, winding corridors and a single
 hard-to-find solution path.
 
 The algorithm works iteratively using an explicit stack:
-  1. Start at the entry cell, mark it visited.
+  1. Start at a valid non-pattern cell, mark it visited.
   2. Pick a random unvisited neighbour, open the wall between them.
   3. Move to that neighbour and repeat.
   4. If no unvisited neighbours remain, backtrack (pop the stack).
   5. Repeat until the stack is empty.
 
-Because every cell is visited exactly once and connected to the tree,
-the result is always a perfect maze (spanning tree).
-
-Example::
-
-    from maze.model import Maze
-    from maze.algorithms.backtracking import RecursiveBacktracker
-
-    maze = Maze(width=20, height=15, entry=(0, 0), exit_=(19, 14))
-    gen = RecursiveBacktracker(seed=42)
-    gen.generate(maze)
+Because every visited cell is connected to the tree, the result is a
+perfect maze over the walkable cells. A final safety pass attempts to
+connect any remaining non-pattern cells.
 """
 from __future__ import annotations
 
@@ -31,16 +23,31 @@ from maze.model import Maze
 
 
 class RecursiveBacktracker(BaseGenerator):
-    """Iterative DFS / Recursive-Backtracker maze generator.
+    """Iterative DFS / Recursive-Backtracker maze generator."""
 
-    Attributes:
-        rng: Seeded random instance inherited from BaseGenerator.
+    def _find_start_cell(self, maze: Maze) -> Optional[Tuple[int, int]]:
+        """Return a valid non-pattern starting cell.
 
-    Example::
+        Preference order:
+            1. entry cell, if it is walkable
+            2. first non-pattern cell found in row-major order
 
-        gen = RecursiveBacktracker(seed=42)
-        gen.generate(maze)
-    """
+        Args:
+            maze: Maze to inspect.
+
+        Returns:
+            (x, y) tuple, or None if no walkable cell exists.
+        """
+        entry_cell = maze.get_cell(*maze.entry)
+        if entry_cell is not None and not entry_cell.is_pattern:
+            return maze.entry
+
+        for y in range(maze.height):
+            for x in range(maze.width):
+                cell = maze.get_cell(x, y)
+                if cell is not None and not cell.is_pattern:
+                    return (x, y)
+        return None
 
     def generate(
         self,
@@ -49,22 +56,19 @@ class RecursiveBacktracker(BaseGenerator):
     ) -> None:
         """Carve a perfect maze using iterative depth-first search.
 
-        Starts from the maze entry cell.  Uses an explicit stack instead
-        of Python recursion to avoid hitting the recursion limit on large
-        mazes.
+        Uses an explicit stack instead of Python recursion to avoid
+        recursion-depth problems on large mazes.
 
         Args:
-            maze: Maze to carve.  Pattern cells must already be marked
-                  via ``embed_pattern_42`` before calling.
+            maze: Maze to carve. Pattern cells must already be marked.
             callback: Optional animation hook called after each wall
-                      carving: ``callback(maze, x, y)``.
-
-        Example::
-
-            gen = RecursiveBacktracker(seed=0)
-            gen.generate(maze, callback=lambda m, x, y: print(x, y))
+                carving: ``callback(maze, x, y)``.
         """
-        start_x, start_y = maze.entry
+        start = self._find_start_cell(maze)
+        if start is None:
+            return
+
+        start_x, start_y = start
         visited: Set[Tuple[int, int]] = {(start_x, start_y)}
         stack: List[Tuple[int, int]] = [(start_x, start_y)]
 
@@ -73,16 +77,13 @@ class RecursiveBacktracker(BaseGenerator):
             neighbors = self._unvisited_neighbors(maze, x, y, visited)
 
             if neighbors:
-                # Pick a random unvisited neighbour
                 nx, ny, direction = self.rng.choice(neighbors)
                 maze.open_wall(x, y, direction)
                 visited.add((nx, ny))
-                if callback:
+                if callback is not None:
                     callback(maze, nx, ny)
                 stack.append((nx, ny))
             else:
-                # No unvisited neighbours — backtrack
                 stack.pop()
 
-        # Safety pass: connect any cells isolated by the "42" pattern
         self._connect_isolated(maze, visited, callback)

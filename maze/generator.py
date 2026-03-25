@@ -3,26 +3,9 @@
 This module provides:
   - ``BaseGenerator``: abstract base class for all algorithms
   - ``embed_pattern_42``: marks the "42" pixel cells before generation
-  - ``add_imperfections``: removes walls to create loops (non-perfect mazes)
-  - ``create_generator``: factory function to instantiate an algorithm by name
+  - ``add_imperfections``: removes walls to create loops
+  - ``create_generator``: factory function to instantiate an algorithm
   - ``list_algorithms``: returns available algorithm names
-
-Algorithms are implemented in separate modules:
-  - maze/algorithms/backtracking.py  →  RecursiveBacktracker
-  - maze/algorithms/prim.py          →  PrimAlgorithm
-
-Usage example
--------------
-    from maze.model import Maze
-    from maze.generator import create_generator, embed_pattern_42
-
-    maze = Maze(width=20, height=15, entry=(0, 0), exit_=(19, 14))
-    ok = embed_pattern_42(maze)
-    if not ok:
-        print("Warning: maze too small for '42' pattern")
-    gen = create_generator("dfs", seed=42)
-    gen.generate(maze)
-    maze.open_border_for_entry_exit()
 """
 from __future__ import annotations
 
@@ -30,22 +13,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Callable, List, Optional, Set, Tuple
 
-from maze.model import (
-    DIRECTION_DELTA,
-    EAST,
-    ALL_WALLS,
-    OPPOSITE,
-    SOUTH,
-    Maze,
-)
-
-# ---------------------------------------------------------------------------
-# "42" pixel pattern
-# ---------------------------------------------------------------------------
-# 1 = fully-closed cell (visible solid block)
-# 0 = normal maze cell
-# Layout: 3 cols for "4", 1 col gap, 3 cols for "2"
-# →  7 cols wide × 5 rows tall
+from maze.model import ALL_WALLS, DIRECTION_DELTA, EAST, OPPOSITE, SOUTH, Maze
 
 PATTERN_42: List[List[int]] = [
     [1, 0, 1, 0, 1, 1, 1],
@@ -57,112 +25,97 @@ PATTERN_42: List[List[int]] = [
 PATTERN_WIDTH: int = 7
 PATTERN_HEIGHT: int = 5
 
-# Minimum maze dimensions that can host the pattern (with 1-cell margin)
-MIN_MAZE_WIDTH: int = PATTERN_WIDTH + 2   # 9
-MIN_MAZE_HEIGHT: int = PATTERN_HEIGHT + 2  # 7
-
-
-def embed_pattern_42(maze: Maze) -> bool:
-    """Mark "42" pixel cells as fully-closed pattern cells.
-
-    Must be called *before* the generation algorithm runs so that the
-    generator treats these cells as impassable obstacles.
-
-    Args:
-        maze: Maze object (all walls still closed at this point).
-
-    Returns:
-        True if the pattern was embedded, False if the maze is too small.
-
-    Example::
-
-        ok = embed_pattern_42(maze)
-        if not ok:
-            print("Error: maze too small for '42' pattern")
-    """
-    if maze.width < MIN_MAZE_WIDTH or maze.height < MIN_MAZE_HEIGHT:
-        return False
-
-    # Centre the pattern inside the maze
-    start_x: int = (maze.width - PATTERN_WIDTH) // 2
-    start_y: int = (maze.height - PATTERN_HEIGHT) // 2
-
-    for row_idx, row in enumerate(PATTERN_42):
-        for col_idx, is_42 in enumerate(row):
-            if is_42:
-                cell = maze.get_cell(start_x + col_idx, start_y + row_idx)
-                if cell is not None:
-                    cell.walls = ALL_WALLS
-                    cell.is_pattern = True
-    return True
-
-
-# ---------------------------------------------------------------------------
-# 3×3 open-area constraint checker
-# ---------------------------------------------------------------------------
-
-def _has_3x3_open_area(maze: Maze, cx: int, cy: int) -> bool:
-    """Return True if a fully-open 3×3 region exists around (cx, cy).
-
-    The subject forbids corridors wider than 2 cells, so any 3×3 block
-    where all interior shared walls are removed is a violation.
-
-    Args:
-        maze: The maze to inspect.
-        cx: Column of the recently modified cell.
-        cy: Row of the recently modified cell.
-
-    Returns:
-        True if a violating 3×3 window is found.
-    """
-    for sx in range(cx - 2, cx + 1):
-        for sy in range(cy - 2, cy + 1):
-            all_open = True
-            for wy in range(sy, sy + 3):
-                for wx in range(sx, sx + 3):
-                    cell = maze.get_cell(wx, wy)
-                    if cell is None or cell.is_pattern:
-                        all_open = False
-                        break
-                    if wx < sx + 2 and maze.has_wall(wx, wy, EAST):
-                        all_open = False
-                        break
-                    if wy < sy + 2 and maze.has_wall(wx, wy, SOUTH):
-                        all_open = False
-                        break
-                if not all_open:
-                    break
-            if all_open:
-                return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Abstract base class
-# ---------------------------------------------------------------------------
+MIN_MAZE_WIDTH: int = PATTERN_WIDTH + 2
+MIN_MAZE_HEIGHT: int = PATTERN_HEIGHT + 2
 
 StepCallback = Callable[[Maze, int, int], None]
 
 
-class BaseGenerator(ABC):
-    """Abstract base class for all maze generation algorithms.
+def embed_pattern_42(maze: Maze) -> bool:
+    """Mark the '42' pattern cells as fully closed cells.
 
-    Subclasses must implement ``generate()``.  The shared helpers
-    ``_unvisited_neighbors`` and ``_connect_isolated`` are available
-    to all algorithms.
+    The pattern is centered in the maze and treated as an obstacle.
 
     Args:
-        seed: Optional random seed for reproducibility.
+        maze: Maze object whose cells are still fully closed.
 
-    Example::
-
-        class MyAlgo(BaseGenerator):
-            def generate(self, maze, callback=None):
-                ...
+    Returns:
+        True if the pattern was embedded, False if the maze is too small
+        or if the pattern would overlap entry or exit.
     """
+    if maze.width < MIN_MAZE_WIDTH or maze.height < MIN_MAZE_HEIGHT:
+        return False
+
+    start_x = (maze.width - PATTERN_WIDTH) // 2
+    start_y = (maze.height - PATTERN_HEIGHT) // 2
+
+    pattern_cells: List[Tuple[int, int]] = []
+
+    for row_idx, row in enumerate(PATTERN_42):
+        for col_idx, is_42 in enumerate(row):
+            if is_42:
+                x = start_x + col_idx
+                y = start_y + row_idx
+                pattern_cells.append((x, y))
+
+    if maze.entry in pattern_cells or maze.exit_ in pattern_cells:
+        return False
+
+    for x, y in pattern_cells:
+        cell = maze.get_cell(x, y)
+        if cell is not None:
+            cell.walls = ALL_WALLS
+            cell.is_pattern = True
+
+    return True
+
+
+def _has_3x3_open_area(maze: Maze, cx: int, cy: int) -> bool:
+    """Return True if a fully open 3x3 region exists around (cx, cy).
+
+    Args:
+        maze: Maze to inspect.
+        cx: Column near the recently modified cell.
+        cy: Row near the recently modified cell.
+
+    Returns:
+        True if a violating 3x3 open area exists.
+    """
+    for start_x in range(cx - 2, cx + 1):
+        for start_y in range(cy - 2, cy + 1):
+            all_open = True
+
+            for win_y in range(start_y, start_y + 3):
+                for win_x in range(start_x, start_x + 3):
+                    cell = maze.get_cell(win_x, win_y)
+                    if cell is None or cell.is_pattern:
+                        all_open = False
+                        break
+
+                    if win_x < start_x + 2:
+                        if maze.has_wall(win_x, win_y, EAST):
+                            all_open = False
+                            break
+
+                    if win_y < start_y + 2:
+                        if maze.has_wall(win_x, win_y, SOUTH):
+                            all_open = False
+                            break
+
+                if not all_open:
+                    break
+
+            if all_open:
+                return True
+
+    return False
+
+
+class BaseGenerator(ABC):
+    """Abstract base class for all maze generation algorithms."""
 
     def __init__(self, seed: Optional[int] = None) -> None:
-        """Initialize with a seeded random instance."""
+        """Initialize the generator with a seeded random instance."""
         self.rng: random.Random = random.Random(seed)
 
     @abstractmethod
@@ -171,13 +124,11 @@ class BaseGenerator(ABC):
         maze: Maze,
         callback: Optional[StepCallback] = None,
     ) -> None:
-        """Generate the maze in-place.
+        """Generate the maze in place.
 
         Args:
-            maze: Maze whose walls will be carved.  Pattern cells must
-                  already be marked via ``embed_pattern_42``.
-            callback: Optional hook called after each wall carving:
-                      ``callback(maze, x, y)``.  Used for animation.
+            maze: Maze whose walls will be carved.
+            callback: Optional animation callback.
         """
 
     def _unvisited_neighbors(
@@ -193,21 +144,25 @@ class BaseGenerator(ABC):
             maze: Current maze.
             x: Source cell column.
             y: Source cell row.
-            visited: Set of already-visited (x, y) tuples.
+            visited: Already visited cells.
 
         Returns:
-            List of (neighbor_x, neighbor_y, direction) tuples.
+            List of ``(neighbor_x, neighbor_y, direction)`` tuples.
         """
         neighbors: List[Tuple[int, int, int]] = []
+
         for direction, (dx, dy) in DIRECTION_DELTA.items():
-            nx, ny = x + dx, y + dy
+            nx = x + dx
+            ny = y + dy
             cell = maze.get_cell(nx, ny)
+
             if (
                 cell is not None
                 and not cell.is_pattern
                 and (nx, ny) not in visited
             ):
                 neighbors.append((nx, ny, direction))
+
         return neighbors
 
     def _connect_isolated(
@@ -216,25 +171,24 @@ class BaseGenerator(ABC):
         visited: Set[Tuple[int, int]],
         callback: Optional[StepCallback],
     ) -> None:
-        """Connect non-pattern cells unreachable after main generation.
-
-        This safety pass guarantees full connectivity even when the "42"
-        pattern blocks the normal DFS/Prim traversal.
+        """Connect isolated non-pattern cells to the visited region.
 
         Args:
             maze: Current maze.
-            visited: Cells already in the spanning tree.
-            callback: Animation callback forwarded on each carving.
+            visited: Cells already connected.
+            callback: Optional animation callback.
         """
         for y in range(maze.height):
             for x in range(maze.width):
                 cell = maze.get_cell(x, y)
                 if cell is None or cell.is_pattern or (x, y) in visited:
                     continue
-                # Find any visited neighbour to connect through
+
                 for direction, (dx, dy) in DIRECTION_DELTA.items():
-                    nx, ny = x + dx, y + dy
+                    nx = x + dx
+                    ny = y + dy
                     neighbor = maze.get_cell(nx, ny)
+
                     if (
                         neighbor is not None
                         and not neighbor.is_pattern
@@ -242,50 +196,56 @@ class BaseGenerator(ABC):
                     ):
                         maze.open_wall(x, y, direction)
                         visited.add((x, y))
-                        if callback:
+
+                        if callback is not None:
                             callback(maze, x, y)
-                        # DFS from the newly connected cell
+
                         stack: List[Tuple[int, int]] = [(x, y)]
+
                         while stack:
-                            cx, cy = stack[-1]
-                            nbrs = self._unvisited_neighbors(
-                                maze, cx, cy, visited
+                            cur_x, cur_y = stack[-1]
+                            neighbors = self._unvisited_neighbors(
+                                maze,
+                                cur_x,
+                                cur_y,
+                                visited,
                             )
-                            if nbrs:
-                                nx2, ny2, d2 = self.rng.choice(nbrs)
-                                maze.open_wall(cx, cy, d2)
+
+                            if neighbors:
+                                nx2, ny2, direction2 = self.rng.choice(
+                                    neighbors
+                                )
+                                maze.open_wall(cur_x, cur_y, direction2)
                                 visited.add((nx2, ny2))
-                                if callback:
+
+                                if callback is not None:
                                     callback(maze, nx2, ny2)
+
                                 stack.append((nx2, ny2))
                             else:
                                 stack.pop()
+
                         break
 
-
-# ---------------------------------------------------------------------------
-# Non-perfect: add controlled loops
-# ---------------------------------------------------------------------------
 
 def add_imperfections(
     maze: Maze,
     rng: random.Random,
     factor: float = 0.15,
 ) -> None:
-    """Remove a fraction of internal walls to create loops.
+    """Remove some internal walls to create loops.
 
-    Turns a perfect maze into a non-perfect one by randomly removing
-    walls.  A wall is only removed if it would NOT create a 3×3 open area.
+    A candidate wall is only removed if doing so does not create a fully
+    open 3x3 area.
 
     Args:
-        maze: A perfect maze to modify in-place.
-        rng: Seeded random instance (use the generator's ``rng``).
-        factor: Fraction of candidate walls to remove (0.0 – 1.0).
-
-    Example::
-
-        add_imperfections(maze, rng=gen.rng, factor=0.15)
+        maze: Perfect maze to modify.
+        rng: Seeded random instance.
+        factor: Fraction of candidate walls to remove.
     """
+    if factor <= 0.0:
+        return
+
     candidates: List[Tuple[int, int, int]] = []
 
     for y in range(maze.height):
@@ -293,43 +253,56 @@ def add_imperfections(
             cell = maze.get_cell(x, y)
             if cell is None or cell.is_pattern:
                 continue
-            for direction, (dx, dy) in DIRECTION_DELTA.items():
-                nx, ny = x + dx, y + dy
+
+            for direction in (EAST, SOUTH):
+                dx, dy = DIRECTION_DELTA[direction]
+                nx = x + dx
+                ny = y + dy
                 neighbor = maze.get_cell(nx, ny)
+
                 if neighbor is None or neighbor.is_pattern:
                     continue
                 if maze.has_wall(x, y, direction):
                     candidates.append((x, y, direction))
 
+    if not candidates:
+        return
+
     rng.shuffle(candidates)
-    max_removals: int = max(1, int(len(candidates) * factor))
-    removals: int = 0
+    max_removals = int(len(candidates) * factor)
+    removals = 0
 
     for x, y, direction in candidates:
         if removals >= max_removals:
             break
         if not maze.has_wall(x, y, direction):
-            continue  # Already opened by a previous iteration
+            continue
 
         maze.open_wall(x, y, direction)
         dx, dy = DIRECTION_DELTA[direction]
-        nx, ny = x + dx, y + dy
+        nx = x + dx
+        ny = y + dy
 
-        if _has_3x3_open_area(maze, x, y) or _has_3x3_open_area(maze, nx, ny):
-            # Revert — re-close both sides
+        if _has_3x3_open_area(maze, x, y):
             cell = maze.get_cell(x, y)
-            nbr = maze.get_cell(nx, ny)
+            neighbor = maze.get_cell(nx, ny)
             if cell is not None:
                 cell.close_wall(direction)
-            if nbr is not None:
-                nbr.close_wall(OPPOSITE[direction])
-        else:
-            removals += 1
+            if neighbor is not None:
+                neighbor.close_wall(OPPOSITE[direction])
+            continue
 
+        if _has_3x3_open_area(maze, nx, ny):
+            cell = maze.get_cell(x, y)
+            neighbor = maze.get_cell(nx, ny)
+            if cell is not None:
+                cell.close_wall(direction)
+            if neighbor is not None:
+                neighbor.close_wall(OPPOSITE[direction])
+            continue
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
+        removals += 1
+
 
 def create_generator(
     algorithm: str = "dfs",
@@ -338,21 +311,15 @@ def create_generator(
     """Instantiate a maze generator by algorithm name.
 
     Args:
-        algorithm: One of 'dfs', 'recursive_backtracker', 'prim', 'prims'.
-        seed: Optional integer seed for reproducibility.
+        algorithm: Supported name such as 'dfs' or 'prim'.
+        seed: Optional integer seed.
 
     Returns:
-        Configured generator instance ready to call ``.generate(maze)``.
+        Configured generator instance.
 
     Raises:
-        ValueError: If *algorithm* is not recognised.
-
-    Example::
-
-        gen = create_generator("prim", seed=42)
-        gen.generate(maze)
+        ValueError: If the algorithm is unknown.
     """
-    # Imports here to avoid circular imports
     from maze.algorithms.backtracking import RecursiveBacktracker
     from maze.algorithms.prim import PrimAlgorithm
 
@@ -370,13 +337,16 @@ def create_generator(
         raise ValueError(
             f"Unknown algorithm {algorithm!r}. Choose from: {valid}"
         )
+
     return algo_class(seed=seed)
 
 
 def list_algorithms() -> List[str]:
-    """Return sorted list of unique algorithm names.
-
-    Returns:
-        List of valid algorithm name strings.
-    """
-    return ["backtracking", "dfs", "prim", "prims", "recursive_backtracker"]
+    """Return the sorted list of supported algorithm names."""
+    return [
+        "backtracking",
+        "dfs",
+        "prim",
+        "prims",
+        "recursive_backtracker",
+    ]
