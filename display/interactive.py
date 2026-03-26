@@ -1,12 +1,4 @@
-"""Interactive terminal loop for A-Maze-ing.
-
-Provides keyboard-driven control after maze generation:
-
-    R  re-generate a new random maze
-    S  show / hide the solution path
-    C  cycle wall colour
-    Q  quit
-"""
+"""Interactive terminal loop for A-Maze-ing."""
 from __future__ import annotations
 
 import sys
@@ -40,14 +32,7 @@ COLOR_NAMES: List[str] = [
 
 
 def read_key() -> str:
-    """Read one keypress from stdin without requiring Enter.
-
-    Uses raw terminal mode on Unix. Falls back to a plain input()
-    prompt on Windows or non-tty environments.
-
-    Returns:
-        Single character string of the pressed key.
-    """
+    """Read one keypress from stdin without requiring Enter."""
     try:
         import termios
         import tty
@@ -64,17 +49,7 @@ def read_key() -> str:
 
 
 def _build_maze(config: Dict[str, Any]) -> Optional[Maze]:
-    """Build and solve a fresh maze from *config*.
-
-    Does not animate — intended for fast regeneration.
-    Uses a random seed so each call produces a different maze.
-
-    Args:
-        config: Parsed configuration dictionary.
-
-    Returns:
-        Ready-to-display Maze, or None if no path could be found.
-    """
+    """Build and solve a fresh maze from *config*."""
     maze = Maze(
         width=config["width"],
         height=config["height"],
@@ -98,18 +73,7 @@ def _build_maze(config: Dict[str, Any]) -> Optional[Maze]:
 
 
 def interactive_loop(maze: Maze, config: Dict[str, Any]) -> None:
-    """Run the interactive display loop until the user quits.
-
-    Keybindings:
-        R — regenerate a new random maze
-        S — toggle solution path visibility
-        C — cycle wall colour
-        Q — quit
-
-    Args:
-        maze: Initial maze to display.
-        config: Parsed configuration (used to regenerate mazes).
-    """
+    """Run the interactive display loop until the user quits."""
     show_solution: bool = True
     color_idx: int = 0
 

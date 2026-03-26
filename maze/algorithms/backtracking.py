@@ -26,18 +26,7 @@ class RecursiveBacktracker(BaseGenerator):
     """Iterative DFS / Recursive-Backtracker maze generator."""
 
     def _find_start_cell(self, maze: Maze) -> Optional[Tuple[int, int]]:
-        """Return a valid non-pattern starting cell.
-
-        Preference order:
-            1. entry cell, if it is walkable
-            2. first non-pattern cell found in row-major order
-
-        Args:
-            maze: Maze to inspect.
-
-        Returns:
-            (x, y) tuple, or None if no walkable cell exists.
-        """
+        """Return a valid non-pattern starting cell."""
         entry_cell = maze.get_cell(*maze.entry)
         if entry_cell is not None and not entry_cell.is_pattern:
             return maze.entry
@@ -54,16 +43,7 @@ class RecursiveBacktracker(BaseGenerator):
         maze: Maze,
         callback: Optional[StepCallback] = None,
     ) -> None:
-        """Carve a perfect maze using iterative depth-first search.
-
-        Uses an explicit stack instead of Python recursion to avoid
-        recursion-depth problems on large mazes.
-
-        Args:
-            maze: Maze to carve. Pattern cells must already be marked.
-            callback: Optional animation hook called after each wall
-                carving: ``callback(maze, x, y)``.
-        """
+        """Carve a perfect maze using iterative depth-first search."""
         start = self._find_start_cell(maze)
         if start is None:
             return

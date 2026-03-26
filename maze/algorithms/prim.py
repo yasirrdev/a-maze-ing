@@ -12,17 +12,7 @@ The algorithm:
   5. Repeat until the frontier is empty.
 
 Because each cell is added exactly once via a random edge, the result
-is always a perfect maze (spanning tree).
-
-Example::
-
-    from maze.model import Maze
-    from maze.algorithms.prim import PrimAlgorithm
-
-    maze = Maze(width=20, height=15, entry=(0, 0), exit_=(19, 14))
-    gen = PrimAlgorithm(seed=7)
-    gen.generate(maze)
-"""
+is always a perfect maze (spanning tree)."""
 from __future__ import annotations
 
 from typing import List, Optional, Set, Tuple
@@ -32,40 +22,15 @@ from maze.model import DIRECTION_DELTA, Maze
 
 
 class PrimAlgorithm(BaseGenerator):
-    """Randomised Prim's minimum-spanning-tree maze generator.
-
-    Attributes:
-        rng: Seeded random instance inherited from BaseGenerator.
-
-    Example::
-
-        gen = PrimAlgorithm(seed=7)
-        gen.generate(maze)
-    """
+    """Randomised Prim's minimum-spanning-tree maze generator."""
 
     def generate(
         self,
         maze: Maze,
         callback: Optional[StepCallback] = None,
     ) -> None:
-        """Carve a perfect maze using randomised Prim's algorithm.
-
-        Maintains a frontier list of candidate cells and randomly selects
-        which passage to open next.
-
-        Args:
-            maze: Maze to carve.  Pattern cells must already be marked
-                  via ``embed_pattern_42`` before calling.
-            callback: Optional animation hook called after each wall
-                      carving: ``callback(maze, x, y)``.
-
-        Example::
-
-            gen = PrimAlgorithm(seed=0)
-            gen.generate(maze, callback=lambda m, x, y: print(x, y))
-        """
+        """Carve a perfect maze using randomised Prim's algorithm."""
         in_maze: Set[Tuple[int, int]] = set()
-        # Each frontier entry: (candidate_x, candidate_y, from_x, from_y)
         frontier: List[Tuple[int, int, int, int]] = []
 
         sx, sy = maze.entry
@@ -73,16 +38,14 @@ class PrimAlgorithm(BaseGenerator):
         self._push_frontier(maze, sx, sy, in_maze, frontier)
 
         while frontier:
-            # Pick a random frontier entry — swap with last for O(1) removal
             idx = self.rng.randrange(len(frontier))
             x, y, from_x, from_y = frontier[idx]
             frontier[idx] = frontier[-1]
             frontier.pop()
 
             if (x, y) in in_maze:
-                continue  # Already connected via another path
+                continue
 
-            # Find the direction from source → new cell
             dx, dy = x - from_x, y - from_y
             direction: Optional[int] = None
             for d, (ddx, ddy) in DIRECTION_DELTA.items():
@@ -97,7 +60,6 @@ class PrimAlgorithm(BaseGenerator):
                     callback(maze, x, y)
                 self._push_frontier(maze, x, y, in_maze, frontier)
 
-        # Safety pass: connect any cells isolated by the "42" pattern
         self._connect_isolated(maze, in_maze, callback)
 
     def _push_frontier(
@@ -108,15 +70,7 @@ class PrimAlgorithm(BaseGenerator):
         in_maze: Set[Tuple[int, int]],
         frontier: List[Tuple[int, int, int, int]],
     ) -> None:
-        """Add walkable neighbours not yet in the maze to the frontier.
-
-        Args:
-            maze: Current maze.
-            x: Source cell column.
-            y: Source cell row.
-            in_maze: Set of cells already carved into the tree.
-            frontier: Frontier list to append candidates to.
-        """
+        """Add walkable neighbours not yet in the maze to the frontier."""
         for _, (ddx, ddy) in DIRECTION_DELTA.items():
             nx, ny = x + ddx, y + ddy
             cell = maze.get_cell(nx, ny)

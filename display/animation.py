@@ -22,14 +22,7 @@ def animate_maze(
     show_solution: bool = False,
     header: Optional[str] = None,
 ) -> None:
-    """Render the maze once and pause for *delay* seconds.
-
-    Args:
-        maze: Maze to display.
-        delay: Time to wait after rendering, in seconds.
-        show_solution: Whether to draw the stored solution.
-        header: Optional text printed above the maze.
-    """
+    """Render the maze once and pause for *delay* seconds."""
     clear_screen()
     if header:
         print(header)
@@ -42,15 +35,7 @@ def make_generation_callback(
     delay: float = 0.02,
     header: str = "Generating maze...",
 ) -> StepCallback:
-    """Return a callback compatible with generator.generate().
-
-    Args:
-        delay: Frame delay in seconds.
-        header: Text shown above the animation.
-
-    Returns:
-        Callback with signature ``callback(maze, x, y)``.
-    """
+    """Return a callback compatible with generator.generate()."""
 
     def callback(maze: Maze, _x: int, _y: int) -> None:
         animate_maze(
@@ -68,15 +53,7 @@ def animate_solution(
     delay: float = 0.08,
     header: str = "Solving maze...",
 ) -> None:
-    """Animate the solution path step by step.
-
-    Assumes ``maze.solution`` is already set by the solver.
-
-    Args:
-        maze: Maze with a stored solution.
-        delay: Frame delay in seconds.
-        header: Text shown above the animation.
-    """
+    """Animate the solution path step by step."""
     original_solution = list(maze.solution)
     maze.solution = []
 

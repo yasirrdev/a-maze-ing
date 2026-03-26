@@ -25,18 +25,7 @@ def _make_maze(
     algorithm: str = "dfs",
     perfect: bool = True,
 ) -> Maze:
-    """Build a fully generated and solved maze for testing.
-
-    Args:
-        w: Maze width.
-        h: Maze height.
-        seed: Random seed for reproducibility.
-        algorithm: Generation algorithm name.
-        perfect: Whether to generate a perfect maze.
-
-    Returns:
-        Ready-to-use Maze with solution stored.
-    """
+    """Build a fully generated and solved maze for testing"""
     m = Maze(w, h, (0, 0), (w - 1, h - 1))
     embed_pattern_42(m)
     gen = create_generator(algorithm, seed=seed)
@@ -46,9 +35,6 @@ def _make_maze(
     m.open_border_for_entry_exit()
     m.solution = solve_bfs(m) or []
     return m
-
-
-# ── Generation ──────────────────────────────────────────────────
 
 
 def test_maze_has_solution() -> None:
@@ -100,9 +86,6 @@ def test_wall_coherence() -> None:
                 ), f"Incoherence at ({x},{y})"
 
 
-# ── Pattern ─────────────────────────────────────────────────────
-
-
 def test_pattern_embedded_in_large_maze() -> None:
     """Pattern must be embedded when the maze is large enough."""
     m = Maze(20, 20, (0, 0), (19, 19))
@@ -129,9 +112,6 @@ def test_unknown_algorithm_raises() -> None:
     """create_generator must raise ValueError for unknown names."""
     with pytest.raises(ValueError):
         create_generator("unknown_algo")
-
-
-# ── Parser ──────────────────────────────────────────────────────
 
 
 def test_valid_config(tmp_path: Path) -> None:
@@ -171,9 +151,6 @@ def test_entry_equals_exit_raises(tmp_path: Path) -> None:
     )
     with pytest.raises(ConfigError):
         parse_config(str(cfg))
-
-
-# ── Writer ──────────────────────────────────────────────────────
 
 
 def test_output_file_is_created(tmp_path: Path) -> None:
