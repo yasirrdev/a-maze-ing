@@ -8,8 +8,10 @@ from __future__ import annotations
 import sys
 
 from display.animation import animate_solution, make_generation_callback
-from display.ascii import render_ascii
-from maze.generator import add_imperfections, create_generator, embed_pattern_42
+from display.interactive import interactive_loop
+from maze.generator import (add_imperfections,
+                            create_generator,
+                            embed_pattern_42)
 from maze.model import Maze
 from maze.solver import solve_bfs
 from utils.parser import ConfigError, parse_config
@@ -52,11 +54,17 @@ def main() -> int:
             return 1
 
         if entry_cell.is_pattern:
-            print("Error: ENTRY lies inside the '42' pattern.", file=sys.stderr)
+            print(
+                "Error: ENTRY lies inside the '42' pattern.",
+                file=sys.stderr,
+            )
             return 1
 
         if exit_cell.is_pattern:
-            print("Error: EXIT lies inside the '42' pattern.", file=sys.stderr)
+            print(
+                "Error: EXIT lies inside the '42' pattern.",
+                file=sys.stderr,
+            )
             return 1
 
         generator = create_generator(
@@ -87,18 +95,13 @@ def main() -> int:
         if errors:
             print("Maze validation failed:", file=sys.stderr)
             for error in errors:
-                print(f"- {error}", file=sys.stderr)
+                print(f"  - {error}", file=sys.stderr)
             return 1
 
         write_maze(maze, config["output_file"])
+        print(f"Maze saved to: {config['output_file']}")
 
-        print(f"Maze generated successfully: {config['output_file']}")
-        print(f"Size: {maze.width}x{maze.height}")
-        print(f"Algorithm: {config['algorithm']}")
-        print(f"Perfect: {config['perfect']}")
-        print(f"Solution length: {len(maze.solution)}")
-        print()
-
+        interactive_loop(maze, config)
         return 0
 
     except ConfigError as exc:

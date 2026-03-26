@@ -2,7 +2,7 @@
 
 This module provides:
   - ``BaseGenerator``: abstract base class for all algorithms
-  - ``embed_pattern_42``: marks the "42" pixel cells before generation
+  - ``embed_pattern_42``: marks the '42' pixel cells before generation
   - ``add_imperfections``: removes walls to create loops
   - ``create_generator``: factory function to instantiate an algorithm
   - ``list_algorithms``: returns available algorithm names
@@ -32,16 +32,17 @@ StepCallback = Callable[[Maze, int, int], None]
 
 
 def embed_pattern_42(maze: Maze) -> bool:
-    """Mark the '42' pattern cells as fully closed cells.
+    """Mark the '42' pattern cells as fully closed obstacles.
 
-    The pattern is centered in the maze and treated as an obstacle.
+    The pattern is centred in the maze and treated as impassable.
 
     Args:
         maze: Maze object whose cells are still fully closed.
 
     Returns:
-        True if the pattern was embedded, False if the maze is too small
-        or if the pattern would overlap entry or exit.
+        True if the pattern was embedded successfully.
+        False if the maze is too small or the pattern would overlap
+        the entry or exit cell.
     """
     if maze.width < MIN_MAZE_WIDTH or maze.height < MIN_MAZE_HEIGHT:
         return False
@@ -70,52 +71,58 @@ def embed_pattern_42(maze: Maze) -> bool:
     return True
 
 
-def _has_3x3_open_area(maze: Maze, cx: int, cy: int) -> bool:
-    """Return True if a fully open 3x3 region exists around (cx, cy).
+def _is_3x3_open_at(maze: Maze, sx: int, sy: int) -> bool:
+    """Return True if the 3x3 window with top-left at (sx, sy) is open.
+
+    A window is considered open when every internal wall between its
+    nine cells is absent and none of the cells is a pattern cell.
 
     Args:
         maze: Maze to inspect.
-        cx: Column near the recently modified cell.
-        cy: Row near the recently modified cell.
+        sx: Top-left column of the 3x3 window.
+        sy: Top-left row of the 3x3 window.
 
     Returns:
-        True if a violating 3x3 open area exists.
+        True when the entire 3x3 area is fully open.
     """
-    for start_x in range(cx - 2, cx + 1):
-        for start_y in range(cy - 2, cy + 1):
-            all_open = True
+    for wy in range(sy, sy + 3):
+        for wx in range(sx, sx + 3):
+            cell = maze.get_cell(wx, wy)
+            if cell is None or cell.is_pattern:
+                return False
+            if wx < sx + 2 and maze.has_wall(wx, wy, EAST):
+                return False
+            if wy < sy + 2 and maze.has_wall(wx, wy, SOUTH):
+                return False
+    return True
 
-            for win_y in range(start_y, start_y + 3):
-                for win_x in range(start_x, start_x + 3):
-                    cell = maze.get_cell(win_x, win_y)
-                    if cell is None or cell.is_pattern:
-                        all_open = False
-                        break
 
-                    if win_x < start_x + 2:
-                        if maze.has_wall(win_x, win_y, EAST):
-                            all_open = False
-                            break
+def _has_3x3_open_area(maze: Maze, cx: int, cy: int) -> bool:
+    """Return True if any 3x3 fully open area exists near (cx, cy).
 
-                    if win_y < start_y + 2:
-                        if maze.has_wall(win_x, win_y, SOUTH):
-                            all_open = False
-                            break
+    Checks all 3x3 windows whose top-left corner falls within
+    two cells of (cx, cy).
 
-                if not all_open:
-                    break
+    Args:
+        maze: Maze to inspect.
+        cx: Column of the recently modified cell.
+        cy: Row of the recently modified cell.
 
-            if all_open:
-                return True
-
-    return False
+    Returns:
+        True if at least one violating 3x3 open area exists.
+    """
+    return any(
+        _is_3x3_open_at(maze, sx, sy)
+        for sx in range(cx - 2, cx + 1)
+        for sy in range(cy - 2, cy + 1)
+    )
 
 
 class BaseGenerator(ABC):
     """Abstract base class for all maze generation algorithms."""
 
     def __init__(self, seed: Optional[int] = None) -> None:
-        """Initialize the generator with a seeded random instance."""
+        """Initialise the generator with a seeded random instance."""
         self.rng: random.Random = random.Random(seed)
 
     @abstractmethod
@@ -128,7 +135,8 @@ class BaseGenerator(ABC):
 
         Args:
             maze: Maze whose walls will be carved.
-            callback: Optional animation callback.
+            callback: Optional animation callback called after each
+                wall carving: ``callback(maze, x, y)``.
         """
 
     def _unvisited_neighbors(
@@ -175,7 +183,7 @@ class BaseGenerator(ABC):
 
         Args:
             maze: Current maze.
-            visited: Cells already connected.
+            visited: Cells already connected to the spanning tree.
             callback: Optional animation callback.
         """
         for y in range(maze.height):
@@ -233,15 +241,15 @@ def add_imperfections(
     rng: random.Random,
     factor: float = 0.15,
 ) -> None:
-    """Remove some internal walls to create loops.
+    """Remove some internal walls to create loops in the maze.
 
-    A candidate wall is only removed if doing so does not create a fully
-    open 3x3 area.
+    A wall is only removed if doing so would not create a fully
+    open 3x3 area anywhere in the maze.
 
     Args:
         maze: Perfect maze to modify.
         rng: Seeded random instance.
-        factor: Fraction of candidate walls to remove.
+        factor: Fraction of candidate walls to attempt to remove.
     """
     if factor <= 0.0:
         return
@@ -318,7 +326,7 @@ def create_generator(
         Configured generator instance.
 
     Raises:
-        ValueError: If the algorithm is unknown.
+        ValueError: If the algorithm name is unknown.
     """
     from maze.algorithms.backtracking import RecursiveBacktracker
     from maze.algorithms.prim import PrimAlgorithm

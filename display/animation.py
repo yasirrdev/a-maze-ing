@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 from display.ascii import render_ascii
+from maze.generator import StepCallback
 from maze.model import Maze
 
 
@@ -21,11 +22,11 @@ def animate_maze(
     show_solution: bool = False,
     header: Optional[str] = None,
 ) -> None:
-    """Render the maze repeatedly with a short delay.
+    """Render the maze once and pause for *delay* seconds.
 
     Args:
         maze: Maze to display.
-        delay: Time to wait between frames.
+        delay: Time to wait after rendering, in seconds.
         show_solution: Whether to draw the stored solution.
         header: Optional text printed above the maze.
     """
@@ -40,7 +41,7 @@ def animate_maze(
 def make_generation_callback(
     delay: float = 0.02,
     header: str = "Generating maze...",
-) -> callable:
+) -> StepCallback:
     """Return a callback compatible with generator.generate().
 
     Args:
@@ -67,9 +68,9 @@ def animate_solution(
     delay: float = 0.08,
     header: str = "Solving maze...",
 ) -> None:
-    """Animate the solution path progressively.
+    """Animate the solution path step by step.
 
-    This assumes ``maze.solution`` already exists.
+    Assumes ``maze.solution`` is already set by the solver.
 
     Args:
         maze: Maze with a stored solution.
