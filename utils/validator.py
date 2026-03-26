@@ -24,7 +24,15 @@ from __future__ import annotations
 from collections import deque
 from typing import List, Tuple
 
-from maze.model import DIRECTION_DELTA, EAST, NORTH, OPPOSITE, SOUTH, WEST, Maze
+from maze.model import (
+    DIRECTION_DELTA,
+    EAST,
+    NORTH,
+    OPPOSITE,
+    SOUTH,
+    WEST,
+    Maze,
+)
 
 
 def validate_maze(maze: Maze) -> List[str]:
@@ -147,7 +155,10 @@ def validate_maze(maze: Maze) -> List[str]:
 
         if isolated:
             sample = isolated[:3]
-            tail = f" (and {len(isolated) - 3} more)" if len(isolated) > 3 else ""
+            if len(isolated) > 3:
+                tail = f" (and {len(isolated) - 3} more)"
+            else:
+                tail = ""
             errors.append(
                 f"Isolated (unreachable) cells: {sample}{tail}"
             )
